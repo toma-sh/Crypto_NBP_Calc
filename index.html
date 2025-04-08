@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NBP Crypto Cost Calculator</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f4f6f9;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+      }
+
+      .container {
+        background: #fff;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+        padding: 30px;
+        max-width: 900px;
+        width: 100%;
+        margin: 20px;
+      }
+
+      h1 {
+        text-align: center;
+        color: #2c3e50;
+      }
+
+      .input-row,
+      .file-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      input,
+      select,
+      button {
+        padding: 10px;
+        font-size: 14px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        outline: none;
+      }
+
+      button {
+        padding: 10px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        cursor: pointer;
+        background-color: #4caf50;
+        color: white;
+        border-radius: 0; /* brak zaokrąglenia rogów */
+        transition: background-color 0.3s;
+      }
+
+      button:hover {
+        background-color: #006400; /* ciemniejszy zielony przy hover */
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+
+      th,
+      td {
+        padding: 12px;
+        text-align: center;
+        border-bottom: 1px solid #eee;
+      }
+
+      tfoot tr {
+        font-weight: bold;
+        background-color: #ecf0f1;
+      }
+
+      textarea {
+        width: 100%;
+        margin-top: 20px;
+        height: 120px;
+        font-family: monospace;
+        font-size: 12px;
+        padding: 10px;
+        resize: none;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      /* Stylizacja przycisku "Wybierz plik" dla przeglądarek opartych na WebKit */
+      input[type="file"]::-webkit-file-upload-button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 0;
+        padding: 10px;
+        margin-right: 10px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      input[type="file"]::-webkit-file-upload-button:hover {
+        background-color: #006400;
+      }
+
+      /* Stylizacja przycisku "Wybierz plik" dla nowych przeglądarek obsługujących ::file-selector-button */
+      input[type="file"]::file-selector-button {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 0;
+        padding: 10px;
+        margin-right: 10px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      input[type="file"]::file-selector-button:hover {
+        background-color: #006400;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>NBP Crypto Cost Calculator</h1>
+
+      <!-- Wczytywanie pliku CSV/JSON -->
+      <div class="file-row">
+        <label for="fileInput"
+          ><strong>Wczytaj plik (.csv lub .json):</strong></label
+        >
+        <input type="file" id="fileInput" accept=".csv, .json" />
+      </div>
+
+      <!-- Dodawanie wpisu ręcznie -->
+      <div class="input-row">
+        <input type="date" id="dateInput" placeholder="Data zakupu" />
+        <input type="number" step="0.01" id="amountInput" placeholder="Kwota" />
+        <select id="currencyInput">
+          <option value="usd" selected>USD</option>
+          <option value="eur">EUR</option>
+          <option value="pln">PLN</option>
+        </select>
+        <button onclick="addEntry()">Dodaj wpis</button>
+      </div>
+
+      <!-- Tabela z wpisami oraz podsumowaniem -->
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Waluta</th>
+            <th>Kwota</th>
+            <th>Kurs NBP</th>
+            <th>Wartość PLN</th>
+            <th>Akcja</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Wiersze dodawane dynamicznie -->
+        </tbody>
+        <tfoot>
+          <!-- Podsumowanie -->
+        </tfoot>
+      </table>
+
+      <div style="text-align: center; margin-top: 20px">
+        <button onclick="calculatePLN()">Oblicz koszty w PLN</button>
+      </div>
+
+      <!-- Pole logów -->
+      <textarea
+        id="logOutput"
+        readonly
+        placeholder="Logi z pobierania kursów..."
+      ></textarea>
+    </div>
+
+    <script>
+      const tableBody = document.querySelector("#dataTable tbody");
+      const tableFooter = document.querySelector("#dataTable tfoot");
+      const logOutput = document.getElementById("logOutput");
+      const entries = [];
+
+      // Funkcja do logowania informacji
+      function log(message) {
+        logOutput.value += message + "\n";
+        logOutput.scrollTop = logOutput.scrollHeight;
+      }
+
+      // Dodawanie wpisu ręcznie
+      function addEntry() {
+        const date = document.getElementById("dateInput").value;
+        const amount = parseFloat(document.getElementById("amountInput").value);
+        const currency = document
+          .getElementById("currencyInput")
+          .value.toLowerCase();
+        if (!date || isNaN(amount)) {
+          alert("Podaj poprawną datę oraz kwotę!");
+          return;
+        }
+        const entry = { date, amount, currency };
+        entries.push(entry);
+        appendRow(entry);
+      }
+
+      // Dodanie wiersza do tabeli
+      function appendRow(entry) {
+        const row = tableBody.insertRow();
+        row.insertCell(0).innerText = entry.date;
+        row.insertCell(1).innerText = entry.currency.toUpperCase();
+        row.insertCell(2).innerText = entry.amount.toFixed(2);
+        row.insertCell(3).innerText = "-";
+        row.insertCell(4).innerText = "-";
+
+        const actionCell = row.insertCell(5);
+        const deleteButton = document.createElement("button");
+        deleteButton.textContent = "Usuń";
+        deleteButton.onclick = function () {
+          // Znajdź indeks wiersza - uwzględnij, że pierwsza linia to nagłówek, stąd -1
+          const rowIndex = row.rowIndex - 1;
+          // Usuń wpis z tablicy entries
+          entries.splice(rowIndex, 1);
+          // Usuń wiersz z tabeli
+          tableBody.deleteRow(rowIndex);
+          // Ewentualnie możesz zaktualizować podsumowanie, jeśli już zostało wyliczone
+        };
+        actionCell.appendChild(deleteButton);
+      }
+
+      // Wczytywanie pliku CSV lub JSON
+      document
+        .getElementById("fileInput")
+        .addEventListener("change", function (event) {
+          const file = event.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const contents = e.target.result;
+            if (file.name.toLowerCase().endsWith(".csv")) {
+              parseCSV(contents);
+            } else if (file.name.toLowerCase().endsWith(".json")) {
+              parseJSON(contents);
+            } else {
+              alert("Nieobsługiwany format pliku. Użyj .csv lub .json.");
+            }
+          };
+          reader.readAsText(file);
+        });
+
+      // Parsowanie CSV (format: data|kwota|waluta)
+      function parseCSV(data) {
+        const lines = data.split("\n");
+        lines.forEach(function (line) {
+          if (!line.trim()) return; // pomiń puste wiersze
+          const parts = line.split("|");
+          if (parts.length >= 3) {
+            const date = parts[0].trim();
+            const amount = parseFloat(parts[1].trim());
+            const currency = parts[2].trim().toLowerCase();
+            if (
+              date &&
+              !isNaN(amount) &&
+              (currency === "usd" || currency === "eur" || currency === "pln")
+            ) {
+              const entry = { date, amount, currency };
+              entries.push(entry);
+              appendRow(entry);
+            }
+          }
+        });
+      }
+
+      // Parsowanie JSON (oczekujemy tablicy obiektów z polami: data, kwota, waluta)
+      function parseJSON(data) {
+        try {
+          const json = JSON.parse(data);
+          json.forEach(function (item) {
+            if (item.data && item.kwota && item.waluta) {
+              const date = item.data;
+              const amount = parseFloat(item.kwota);
+              const currency = item.waluta.toLowerCase();
+              if (
+                date &&
+                !isNaN(amount) &&
+                (currency === "usd" || currency === "eur" || currency === "pln")
+              ) {
+                const entry = { date, amount, currency };
+                entries.push(entry);
+                appendRow(entry);
+              }
+            }
+          });
+        } catch (e) {
+          console.error("Błąd parsowania JSON:", e);
+          alert("Błąd parsowania pliku JSON.");
+        }
+      }
+
+      // Funkcja pobierająca kurs z NBP z uwzględnieniem braku kursu w dni weekendu
+      async function getNBPRate(currency, date) {
+        if (currency === "pln") return 1.0;
+        let attemptDate = new Date(date);
+        while (true) {
+          const formattedDate = attemptDate.toISOString().split("T")[0];
+          const url = `https://api.nbp.pl/api/exchangerates/rates/a/${currency}/${formattedDate}/?format=json`;
+          try {
+            const response = await fetch(url);
+            if (!response.ok)
+              throw new Error("Brak danych dla " + formattedDate);
+            const data = await response.json();
+            log(
+              `Pobrano kurs ${currency.toUpperCase()} dla ${formattedDate}: ${
+                data.rates[0].mid
+              }`
+            );
+            return data.rates[0].mid;
+          } catch (error) {
+            log(
+              `Nie znaleziono kursu dla ${formattedDate}. Próba poprzedniego dnia...`
+            );
+            attemptDate.setDate(attemptDate.getDate() - 1);
+          }
+        }
+      }
+
+      // Obliczenie i aktualizacja tabeli oraz podsumowania
+      async function calculatePLN() {
+        let totalPLN = 0;
+        const currencySums = { usd: 0, eur: 0, pln: 0 };
+
+        for (let i = 0; i < entries.length; i++) {
+          const entry = entries[i];
+          const rate = await getNBPRate(entry.currency, entry.date);
+          const valuePLN = entry.amount * rate;
+          totalPLN += valuePLN;
+          currencySums[entry.currency] += entry.amount;
+
+          // Aktualizacja wiersza tabeli
+          const row = tableBody.rows[i];
+          row.cells[3].innerText = rate.toFixed(4);
+          row.cells[4].innerText = valuePLN.toFixed(2);
+        }
+
+        tableFooter.innerHTML = `
+        <tr><td colspan="5">&nbsp;</td></tr>
+        <tr>
+          <td colspan="2"><strong>Liczba wpisów</strong></td>
+          <td colspan="3">${entries.length}</td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>USD Suma</strong></td>
+          <td colspan="3">${currencySums.usd.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>EUR Suma</strong></td>
+          <td colspan="3">${currencySums.eur.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>PLN Suma</strong></td>
+          <td colspan="3">${currencySums.pln.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>Całkowity koszt w PLN</strong></td>
+          <td colspan="3">${totalPLN.toFixed(2)} PLN</td>
+        </tr>
+      `;
+      }
+    </script>
+  </body>
+</html>
